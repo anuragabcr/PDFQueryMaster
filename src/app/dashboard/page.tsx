@@ -2,8 +2,9 @@ import React from "react";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { redirect } from "next/navigation";
 import prismadb from "@/db";
+import Dashboard from "@/components/Dashboard";
 
-const Dashboard = async () => {
+const Page = async () => {
   const { getUser } = getKindeServerSession();
   const user = getUser();
 
@@ -17,7 +18,7 @@ const Dashboard = async () => {
 
   if (!dbUser) redirect("/auth-callback?origin=dashboard");
 
-  return <div>Dashboard</div>;
+  return <Dashboard />;
 };
 
-export default Dashboard;
+export default Page;
