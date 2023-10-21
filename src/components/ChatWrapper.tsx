@@ -1,13 +1,14 @@
 "use client";
 
 import React from "react";
-import Message from "./Message";
 import ChatInput from "./ChatInput";
 import { trpc } from "@/app/_trpc/client";
 import { ArrowLeftIcon, Loader2, XCircle } from "lucide-react";
 import { Loader } from "./Loader";
 import Link from "next/link";
 import { buttonVariants } from "./ui/button";
+import { ChatContextProvider } from "./ChatContext";
+import Messages from "./Messages";
 
 const ChatWrapper = ({ fileId }: { fileId: string }) => {
   const { data, isLoading } = trpc.getFileUploadStatus.useQuery(
@@ -62,12 +63,14 @@ const ChatWrapper = ({ fileId }: { fileId: string }) => {
     );
 
   return (
-    <div className="relative min-h-full bg-zinc-50 flex divide-y divide-zinc-200 flex-col justify-between gap-2">
-      <div className="flex-1 justify-between flex flex-col mb-28">
-        <Message />
+    <ChatContextProvider fileId={fileId}>
+      <div className="relative min-h-full bg-zinc-50 flex divide-y divide-zinc-200 flex-col justify-between gap-2">
+        <div className="flex-1 justify-between flex flex-col mb-28">
+          <Messages fileId={fileId} />
+        </div>
+        <ChatInput isDisabled={false} />
       </div>
-      <ChatInput isDisabled={false} />
-    </div>
+    </ChatContextProvider>
   );
 };
 
