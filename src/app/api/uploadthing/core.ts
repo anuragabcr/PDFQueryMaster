@@ -5,6 +5,8 @@ import { PDFLoader } from "langchain/document_loaders/fs/pdf";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { PineconeStore } from "langchain/vectorstores/pinecone";
 import { pinecone } from "@/lib/pinecone";
+import { getUserSubscriptionPlan } from "@/lib/stripe";
+import { PLANS } from "@/config/stripe";
 
 const f = createUploadthing();
 
@@ -16,7 +18,9 @@ export const ourFileRouter = {
 
       if (!user || !user.id) throw new Error("Unauthorized");
 
-      return { userId: user.id };
+      const subscriptionPlan = await getUserSubscriptionPlan();
+
+      return { userId: user.id, subscriptionPlan };
     })
     .onUploadComplete(async ({ metadata, file }) => {
       const newFile = await prismadb.file.create({
@@ -38,6 +42,28 @@ export const ourFileRouter = {
 
         const pageLevelDocs = await loader.load();
         const pageAmt = pageLevelDocs.length;
+
+        const { subscriptionPlan } = metadata;
+        const { isSubscribed } = subscriptionPlan;
+
+        const isProExceeded =
+          pageAmt > PLANS.find((plan) => plan.name === "Pro")!.pagesPerPdf;
+        const isFreeExceeded =
+          pageAmt > PLANS.find((plan) => plan.name === "Free")!.pagesPerPdf;
+
+        if (
+          (isSubscribed && isProExceeded) ||
+          (!isSubscribed && isFreeExceeded)
+        ) {
+          await prismadb.file.update({
+            data: {
+              uploadStatus: "FAILED",
+            },
+            where: {
+              id: newFile.id,
+            },
+          });
+        }
 
         const pineconeIndex = pinecone.Index("query-master");
         const embeddings = new OpenAIEmbeddings({
