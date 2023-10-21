@@ -1,6 +1,10 @@
 import prismadb from "@/db";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { PDFLoader } from "langchain/document_loaders/fs/pdf";
+import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { PineconeStore } from "langchain/vectorstores/pinecone";
+import { pinecone } from "@/lib/pinecone";
 
 const f = createUploadthing();
 
@@ -24,6 +28,45 @@ export const ourFileRouter = {
           uploadStatus: "PROCESSING",
         },
       });
+      try {
+        const response = await fetch(
+          `https://uploadthing-prod.s3.us-west-2.amazonaws.com/${file.key}`
+        );
+        const blob = await response.blob();
+
+        const loader = new PDFLoader(blob);
+
+        const pageLevelDocs = await loader.load();
+        const pageAmt = pageLevelDocs.length;
+
+        const pineconeIndex = pinecone.Index("query-master");
+        const embeddings = new OpenAIEmbeddings({
+          openAIApiKey: process.env.OPENAI_API_KEY,
+        });
+
+        await PineconeStore.fromDocuments(pageLevelDocs, embeddings, {
+          pineconeIndex,
+        });
+        await prismadb.file.update({
+          where: {
+            id: newFile.id,
+          },
+          data: {
+            uploadStatus: "SUCCESS",
+          },
+        });
+      } catch (error) {
+        console.log(error);
+
+        await prismadb.file.update({
+          where: {
+            id: newFile.id,
+          },
+          data: {
+            uploadStatus: "FAILED",
+          },
+        });
+      }
     }),
 } satisfies FileRouter;
 
